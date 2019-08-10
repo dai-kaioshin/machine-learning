@@ -1,7 +1,11 @@
 from layers import *
 from functions import *
+from optimizers import *
 import mnist
 import pickle
+
+from model import Model
+from loss_functions import *
 
 images = mnist.train_images()
 labels = mnist.train_labels()
@@ -11,15 +15,16 @@ print(images.shape[0])
 train_x = images[:1000] / 255.0
 train_y = labels[:1000] 
 
-test_x = images[1500:2000] / 255.0
-test_y = labels[1500:2000]
+test_x = images[10000:10500] / 255.0
+test_y = labels[10000:10500]
 
 
-net = Network(optmizer=SGDMomentum(0.04, 0.9))
+net = Network(optmizer=SGDMomentum(0.02, 0.9))
 net.add(Convolution())
 net.add(MaxPool())
 net.add(Flatten())
-net.add(Dense(inputs = 1352, outputs = 10, activation = SoftMax()))
+net.add(Dense(inputs = 1352, outputs = 20, activation = LeakyReLu()))
+net.add(Dense(inputs = 20, outputs = 10, activation = SoftMax()))
 
 def error(out, label):
     return -np.log(out[label] + 1e-8)
@@ -38,8 +43,9 @@ def train():
     l = train_y[perm]
     err = 0
     acc = 0
+    update = train_x.shape[0] / 100
     for i, (im, label) in enumerate(zip(x, l)):
-        if i > 0 and (i % 100) == 99:
+        if i > 0 and (i % update) == update - 1:
             print("After {} steps  : error = {}, accuracy = {}".format(i+1, err / (i+1), acc / (i+1)))
         out = net.propagate(im)
 
@@ -78,6 +84,10 @@ for epoch in range(10):
         print("Training ended!!!")
         break
 
+"""m = Model(net, CatCrossEntropy(), accuracy)
+
+err, acc = m.train(train_x, train_y, 10)"""
+
 cnt = test_x.shape[0]
 print("Testing with {} images.".format(cnt))
 err, acc = test()
@@ -89,7 +99,7 @@ exp = net.export()
 
 print("Saving...")
 
-filehandler = open("./nets/net_test.npz","wb")
+filehandler = open("./nets/net_test__.npz","wb")
 pickle.dump(exp, filehandler)
 filehandler.close()
 
