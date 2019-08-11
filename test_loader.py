@@ -6,8 +6,8 @@ import pickle
 images = mnist.train_images()
 labels = mnist.train_labels()
 
-test_x = images[15000:18000] / 255.0
-test_y = labels[15000:18000]
+test_x = images[55000:60000] / 255.0
+test_y = labels[55000:60000]
 
 filehandler = open("./nets/net_test_5k.npz","rb")
 o = pickle.load(filehandler)
