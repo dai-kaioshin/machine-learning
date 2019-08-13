@@ -28,7 +28,7 @@ class ReLu(ActivationFunction):
     def export(self):
         return { "name" : "ReLu" }
 
-class LeakyReLu(ActivationFunction):
+class LeakyReLu(ReLu):
     def __init__(self, alpha : float = 0.01):
         self.alpha = alpha
 

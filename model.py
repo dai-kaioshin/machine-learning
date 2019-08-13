@@ -7,6 +7,9 @@ class Model:
         self.loss = loss
         self.acc = acc
 
+    def trainMiniBatch(self, x, y, batchSize, n):
+        pass
+
     def train(self, x, y, n, callback = None):
         for i in range(0, n):
             perm = np.random.permutation(len(x))

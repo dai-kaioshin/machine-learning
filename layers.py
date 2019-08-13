@@ -29,13 +29,9 @@ class MaxPool(Layer):
         return False
 
     def iterateRegions(self, image):
-        """
-        Generates all possible size x size image regions.
-        - image is a 2d numpy array"""
-
         h, w, _ = image.shape
-        w //= 2
-        h //= 2
+        w //= self.size
+        h //= self.size
 
         for i in range(h):
             for j in range(w):
@@ -79,13 +75,9 @@ class AvgPool(MaxPool):
         return False
 
     def iterateRegions(self, image):
-        """
-        Generates all possible size x size image regions.
-        - image is a 2d numpy array"""
-
         h, w, _ = image.shape
-        w //= 2
-        h //= 2
+        w //= self.size
+        h //= self.size
 
         for i in range(h):
             for j in range(w):
@@ -106,11 +98,8 @@ class AvgPool(MaxPool):
         dL_dI = np.zeros(self.last_input.shape)
 
         for region, i, j in self.iterateRegions(self.last_input):
-            h, w, f = region.shape
-            for i2 in range(h):
-                for j2 in range(w):
-                    for f2 in range(f):
-                        dL_dI[i * 2 + i2, j * 2 + j2, f2] = dL_dO[i, j, f2]/self.size**2
+            h, w, _ = region.shape
+            dL_dI[i * 2 : i * 2 + h, j * 2 : j * 2 + w, :] = dL_dO[i, j, :]
 
         return dL_dI, None  
 
@@ -180,8 +169,8 @@ class Dense(Layer):
         self.name = name
 
     def minMaxW(self, func : ActivationFunction):
-        if func is ReLu or func is LeakyReLu:
-            return .0, .5
+        """if isinstance(func,  ReLu):
+            return .0, .5"""
         return -.4, .4
 
     def propagate(self, input):

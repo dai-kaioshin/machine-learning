@@ -12,12 +12,11 @@ labels = mnist.train_labels()
 
 print(images.shape[0])
 
-train_x = images[:1000] / 255.0
-train_y = labels[:1000] 
+train_x = images[:100] / 255.0
+train_y = labels[:100] 
 
 test_x = images[10000:10500] / 255.0
 test_y = labels[10000:10500]
-
 
 net = Network(optmizer=SGDMomentum(0.02, 0.9))
 net.add(Convolution())
@@ -43,7 +42,7 @@ def train():
     l = train_y[perm]
     err = 0
     acc = 0
-    update = train_x.shape[0] / 100
+    update = train_x.shape[0] / 10
     for i, (im, label) in enumerate(zip(x, l)):
         if i > 0 and (i % update) == update - 1:
             print("After {} steps  : error = {}, accuracy = {}".format(i+1, err / (i+1), acc / (i+1)))
