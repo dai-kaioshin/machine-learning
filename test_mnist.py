@@ -11,8 +11,8 @@ from loss_functions import *
 train_slice = slice(100)
 test_slice = slice(10000,10500)
 save = False
-batch = True
-batchSize = 5
+batch = False
+batchSize = 10
 
 images = mnist.train_images()
 labels = mnist.train_labels()
@@ -29,9 +29,9 @@ loss = CatCrossEntropy()
 
 net = Network(optmizer=Adam(0.02))
 net.add(Convolution())
-net.add(MaxPool(4))
+net.add(MaxPool())
 net.add(Flatten())
-net.add(Dense(inputs = 288, outputs = 20, activation = LeakyReLu()))
+net.add(Dense(inputs = 1352, outputs = 20, activation = LeakyReLu()))
 net.add(Dense(inputs = 20, outputs = 10, activation = SoftMax()))
 
 def accuracy(label, out):

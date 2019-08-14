@@ -29,22 +29,22 @@ class MaxPool(Layer):
         return False
 
     def iterateRegions(self, image):
-        h, w, _ = image.shape
+        _, h, w = image.shape
         w //= self.size
         h //= self.size
 
         for i in range(h):
             for j in range(w):
-                region = image[i * self.size:(i * self.size + self.size), j*self.size:(j*self.size + self.size)]
+                region = image[:, i * self.size:(i * self.size + self.size), j*self.size:(j*self.size + self.size)]
                 yield region, i, j
 
     def propagate(self, input):
         self.last_input = input
-        h, w, numFilters = input.shape
-        out = np.zeros((w // self.size, h // self.size, numFilters))
+        n, h, w = input.shape
+        out = np.zeros((n, w // self.size, h // self.size))
 
         for region, h, w in self.iterateRegions(input):
-            out[h, w] = np.amax(region, axis = (0, 1))
+            out[:,h, w] = np.amax(region, axis = (1, 2))
         
         return out
 
@@ -52,14 +52,14 @@ class MaxPool(Layer):
         dL_dI = np.zeros(self.last_input.shape)
 
         for region, i, j in self.iterateRegions(self.last_input):
-            amax = np.amax(region, axis = (0, 1))
-            h, w, f = region.shape
+            amax = np.amax(region, axis = (1, 2))
+            f, h, w = region.shape
             for i2 in range(h):
                 for j2 in range(w):
                     for f2 in range(f):
                         # If this pixel was the max value, copy the gradient to it.
-                        if region[i2, j2, f2] == amax[f2]:
-                            dL_dI[i * 2 + i2, j * 2 + j2, f2] = dL_dO[i, j, f2]
+                        if region[f2, i2, j2] == amax[f2]:
+                            dL_dI[f2, i * 2 + i2, j * 2 + j2] = dL_dO[f2, i, j]
 
         return dL_dI, None  
 
@@ -75,7 +75,7 @@ class AvgPool(MaxPool):
         return False
 
     def iterateRegions(self, image):
-        h, w, _ = image.shape
+        _, h, w,  = image.shape
         w //= self.size
         h //= self.size
 
@@ -86,11 +86,11 @@ class AvgPool(MaxPool):
 
     def propagate(self, input):
         self.last_input = input
-        h, w, numFilters = input.shape
-        out = np.zeros((w // 2, h // 2, numFilters))
+        n, h, w = input.shape
+        out = np.zeros((n, w // 2, h // 2))
 
         for region, h, w in self.iterateRegions(input):
-            out[h, w] = np.average(region, axis = (0, 1))
+            out[:, h, w] = np.average(region, axis = (1, 2))
         
         return out
 
@@ -98,8 +98,8 @@ class AvgPool(MaxPool):
         dL_dI = np.zeros(self.last_input.shape)
 
         for region, i, j in self.iterateRegions(self.last_input):
-            h, w, _ = region.shape
-            dL_dI[i * 2 : i * 2 + h, j * 2 : j * 2 + w, :] = dL_dO[i, j, :]
+            _, h, w = region.shape
+            dL_dI[:, i * 2 : i * 2 + h, j * 2 : j * 2 + w] = dL_dO[:, i, j]
 
         return dL_dI, None  
 
@@ -118,25 +118,31 @@ class Convolution(Layer):
             self.weights = np.random.uniform(-.5, .5, (filters, size, size))
         self.filters = self.weights
 
+    def reshapeInput(self, input):
+        if input.ndim != 3:
+            return input.reshape(1, input.shape[0], input.shape[1])
+        return input
+
     def iterateRegions(self, image):
         """
         Generates all possible size x size image regions using valid padding.
         - image is a 2d numpy array"""
-
-        h, w = image.shape
+        _, h, w = image.shape
 
         for i in range(h - (self.size - 1)):
             for j in range(w - (self.size - 1)):
-                im_region = image[i:(i + self.size), j:(j + self.size)]
+                im_region = image[:, i:(i + self.size), j:(j + self.size)]
                 yield im_region, i, j
 
     def propagate(self, input):
+        input = self.reshapeInput(input)
         self.last_input = input
-        h, w = input.shape
-        out = np.zeros((h - (self.size -1), w - (self.size - 1), self.numFilters))
+        _, h, w = input.shape
+
+        out = np.zeros((self.numFilters, h - (self.size -1), w - (self.size - 1)))
 
         for region, i, j in self.iterateRegions(input):
-            out[i, j] = np.sum(region * self.filters, axis=(1, 2))
+            out[:,i, j] = np.sum(region * self.filters, axis=(1, 2))
 
         return out
 
@@ -144,11 +150,15 @@ class Convolution(Layer):
         dL_dF = np.zeros(self.filters.shape)
         dL_dI = np.zeros(self.last_input.shape)
         s = self.size
+        im = dL_dI.shape[0]
+        f_p_i = self.numFilters // im
 
-        for region, x, y in self.iterateRegions(self.last_input):
-            for f in range(self.numFilters):
-                dL_dF[f] += dL_dO[x, y, f] * region
-                dL_dI[x : x + s, y : y + s] += np.dot(dL_dO[x, y, f],  self.filters[f])
+        for region, x, y in self.iterateRegions(dL_dI):
+            for f in range(f_p_i):
+                for i in range(im):
+                    f_idx = f + (f_p_i * i)
+                    dL_dF[f_idx] += dL_dO[f_idx, x, y] * region[i]
+                    dL_dI[i, x : x + s, y : y + s] += np.dot(dL_dO[f_idx, x, y],  self.filters[f_idx])
 
         return dL_dI, dL_dF
 
