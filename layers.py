@@ -41,7 +41,7 @@ class MaxPool(Layer):
     def propagate(self, input):
         self.last_input = input
         h, w, numFilters = input.shape
-        out = np.zeros((w // 2, h // 2, numFilters))
+        out = np.zeros((w // self.size, h // self.size, numFilters))
 
         for region, h, w in self.iterateRegions(input):
             out[h, w] = np.amax(region, axis = (0, 1))
@@ -197,6 +197,7 @@ class LayerImporter:
         layers = {
             "Flatten" : LayerImporter.flatten,
             "MaxPool" : LayerImporter.maxPool,
+            "AvgPool" : LayerImporter.avgPool,
             "Convolution" : LayerImporter.convolution,
             "Dense" : LayerImporter.dense
         }
@@ -209,6 +210,10 @@ class LayerImporter:
 
     @staticmethod
     def maxPool(d : dict):
+        return MaxPool(d["size"])
+
+    @staticmethod
+    def avgPool(d : dict):
         return MaxPool(d["size"])
 
     @staticmethod
@@ -230,6 +235,37 @@ class Network:
         self.layers.append(layer)
         if layer.isOptimized():
             self.optimizer.init(layer)
+
+    def batch_fit(self, inputs, targets, loss, accuracy = None):
+        error = 0
+        acc = 0
+        self.optimizer.beforePropagateNet()
+        grads = {}
+        for l in self.layers:
+            if l.isOptimized():
+                grads[l] = np.zeros(l.weights.shape)
+                self.optimizer.beforePropagate(l)
+        n = 0
+        for i, t in zip(inputs, targets):
+            n += 1
+            for l in self.layers:
+                i = l.propagate(i)
+            error += loss.loss(t, i)
+            dL_dY = loss.lossDerivative(t, i)
+            if accuracy:
+                acc += accuracy(t, i) 
+
+            for l in reversed(self.layers):
+                dL_dY, grad = l.backpropagate(dL_dY)
+                if l.isOptimized():
+                    grads[l] += grad
+
+        for l in self.layers:
+            if l.isOptimized():
+                self.optimizer.weightsUpdate(l, grads[l], None)   
+
+        return error / n, acc / n
+        
 
     def propagate(self, input):
         self.optimizer.beforePropagateNet()

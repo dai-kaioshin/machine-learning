@@ -12,8 +12,8 @@ class MSE(LossFuntion):
     def loss(self, target, out):
         return np.sum((target - out)**2) / 2
 
-    def lossDerivative(self,target, out):
-        return out - target
+    def lossDerivative(self, target, out):
+        return target - out
 
 class CatCrossEntropy(LossFuntion):
 
