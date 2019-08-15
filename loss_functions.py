@@ -18,9 +18,10 @@ class MSE(LossFuntion):
 class CatCrossEntropy(LossFuntion):
 
     def loss(self, target, out):
-        return -np.log(out[target] + 1e-8)
+        return [-np.log(o[t] + 1e-8) for o, t in zip(out, target)]
 
     def lossDerivative(self, target, out):
         res = np.zeros(out.shape)
-        res[target] = 1 / (out[target] + 1e-8)
+        for i in range(out.shape[0]):
+            res[i, target[i]] = 1 / (out[i, target[i]] + 1e-8)
         return res

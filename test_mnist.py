@@ -11,7 +11,7 @@ from loss_functions import *
 train_slice = slice(100)
 test_slice = slice(10000,10500)
 save = False
-batch = False
+batch = True
 batchSize = 10
 
 images = mnist.train_images()
@@ -27,7 +27,7 @@ test_y = labels[test_slice]
 
 loss = CatCrossEntropy()
 
-net = Network(optmizer=Adam(0.02))
+net = Network(optmizer=Adam(0.005))
 net.add(Convolution())
 net.add(MaxPool())
 net.add(Flatten())
@@ -35,7 +35,8 @@ net.add(Dense(inputs = 1352, outputs = 20, activation = LeakyReLu()))
 net.add(Dense(inputs = 20, outputs = 10, activation = SoftMax()))
 
 def accuracy(label, out):
-    return 1 if np.argmax(out) == label and out[np.argmax(out)] > 0.6 else 0
+    return [1 if np.argmax(o) == l and o[np.argmax(o)] > .6 else 0 for o,l in zip(out, label)]    
+    #return 1 if np.argmax(out[:]) == label and out[:, np.argmax(out[:])] > 0.6 else 0
 
 def train_batch(batch):
     size = len(train_x)
@@ -64,20 +65,24 @@ def train(batch):
     l = train_y[perm]
     err = 0
     acc = 0
-    n = 0
-    for im, label in zip(x, l):
-        n += 1
-        if n > 0 and (n % batch) == 0:
-            print("After {} steps  : error = {}, accuracy = {}".format(n, err / n, acc / n))
-        out = net.propagate(im)
 
-        err += loss.loss(label, out)
+    size = len(x)
+    m = 10
+    for n in range(0, size, m):
+        out = net.propagate(x[n: n+m])
 
-        dL_dO = loss.lossDerivative(label, out)
+        err += np.sum(loss.loss(l[n:n+m], out)) / m
+
+        dL_dO = loss.lossDerivative(l[n:n+m], out)
+    
+        a = accuracy(l[n:n+m], out)
         
-        acc += accuracy(label, out)
+        acc += np.sum(a) / m
 
         net.backpropagate(dL_dO)
+
+        if n > 0 and (n % batch) == 0:
+            print("After {} steps  : error = {}, accuracy = {}".format(n, err / n, acc / n))
 
     return err / n, acc / n
 

@@ -13,7 +13,7 @@ class Flatten(Layer):
     
     def propagate(self, input):
         self.lastShape = input.shape
-        return input.reshape(np.size(input))
+        return input.reshape(input.shape[0], np.prod(input.shape[1:]))
 
     def backpropagate(self, dL_dO):
         return dL_dO.reshape(self.lastShape), None
@@ -29,22 +29,22 @@ class MaxPool(Layer):
         return False
 
     def iterateRegions(self, image):
-        _, h, w = image.shape
+        _, h, w, _= image.shape
         w //= self.size
         h //= self.size
 
         for i in range(h):
             for j in range(w):
-                region = image[:, i * self.size:(i * self.size + self.size), j*self.size:(j*self.size + self.size)]
+                region = image[:, i * self.size:(i * self.size + self.size), j*self.size:(j*self.size + self.size), :]
                 yield region, i, j
 
     def propagate(self, input):
         self.last_input = input
-        n, h, w = input.shape
-        out = np.zeros((n, w // self.size, h // self.size))
+        n, h, w, d = input.shape
+        out = np.zeros((n, w // self.size, h // self.size, d))
 
         for region, h, w in self.iterateRegions(input):
-            out[:,h, w] = np.amax(region, axis = (1, 2))
+            out[:,h, w, :] = np.amax(region, axis = (1, 2))
         
         return out
 
@@ -53,13 +53,14 @@ class MaxPool(Layer):
 
         for region, i, j in self.iterateRegions(self.last_input):
             amax = np.amax(region, axis = (1, 2))
-            f, h, w = region.shape
+            n, h, w, d = region.shape
             for i2 in range(h):
                 for j2 in range(w):
-                    for f2 in range(f):
-                        # If this pixel was the max value, copy the gradient to it.
-                        if region[f2, i2, j2] == amax[f2]:
-                            dL_dI[f2, i * 2 + i2, j * 2 + j2] = dL_dO[f2, i, j]
+                    for f2 in range(n):
+                        for d2 in range(d):
+                            # If this pixel was the max value, copy the gradient to it.
+                            if region[f2, i2, j2, d2] == amax[f2, d2]:
+                                dL_dI[f2, i * 2 + i2, j * 2 + j2, d2] = dL_dO[f2, i, j, d2]
 
         return dL_dI, None  
 
@@ -119,30 +120,30 @@ class Convolution(Layer):
         self.filters = self.weights
 
     def reshapeInput(self, input):
-        if input.ndim != 3:
-            return input.reshape(1, input.shape[0], input.shape[1])
+        if input.ndim != 4:
+            return input.reshape(input.shape[0], input.shape[1], input.shape[2], 1)
         return input
 
     def iterateRegions(self, image):
         """
         Generates all possible size x size image regions using valid padding.
         - image is a 2d numpy array"""
-        _, h, w = image.shape
+        _, h, w, _ = image.shape
 
         for i in range(h - (self.size - 1)):
             for j in range(w - (self.size - 1)):
-                im_region = image[i:(i + self.size), j:(j + self.size), :]
+                im_region = image[:, i:(i + self.size), j:(j + self.size), :]
                 yield im_region, i, j
 
     def propagate(self, input):
         input = self.reshapeInput(input)
         self.last_input = input
-        h, w, _ = input.shape
+        im, h, w, _ = input.shape
 
-        out = np.zeros((h - (self.size -1), w - (self.size - 1), self.numFilters))
+        out = np.zeros((im, h - (self.size -1), w - (self.size - 1), self.numFilters))
 
         for region, i, j in self.iterateRegions(input):
-            out[i, j, :] = np.sum(region * self.filters, axis=(0, 1))
+                out[:, i, j, :] = np.sum(region * self.filters, axis=(1, 2))
 
         return out
 
@@ -150,15 +151,17 @@ class Convolution(Layer):
         dL_dF = np.zeros(self.filters.shape)
         dL_dI = np.zeros(self.last_input.shape)
         s = self.size
-        im = dL_dI.shape[2]
-        f_p_i = self.numFilters // im
+        im = dL_dI.shape[0]
+        fl = dL_dI.shape[3]
+        f_p_i = self.numFilters // fl
 
-        for region, x, y in self.iterateRegions(dL_dI):
+        for region, x, y in self.iterateRegions(self.last_input):
             for f in range(f_p_i):
-                for i in range(im):
-                    f_idx = f + (f_p_i * i)
-                    dL_dF[f_idx] += dL_dO[f_idx, x, y] * region[i]
-                    dL_dI[x : x + s, y : y + s, i] += np.dot(dL_dO[x, y, f_idx],  self.filters[:, :, f_idx])
+                for i in range(fl):
+                    for j in range(im):
+                        f_idx = f + (f_p_i * i)
+                        dL_dF[:, :, f_idx] += dL_dO[j , x, y, f_idx] * region[j, :, :, i]
+                        dL_dI[j , x : x + s, y : y + s, i] += np.dot(dL_dO[j, x, y, f_idx],  self.filters[:, :, f_idx])
 
         return dL_dI, dL_dF
 
@@ -189,11 +192,10 @@ class Dense(Layer):
 
     def backpropagate(self, dL_dY):
         delta = self.activation.derivative(self.weights, dL_dY)
-        grad = np.vstack(delta, np.dot(self.last_input.T, delta))
-        dL_dY = np.dot(delta * self.weights[1:,:].T, axis=1)
+        grad = np.vstack((np.sum(delta, axis=0), np.dot(self.last_input.T, delta)))
+        dL_dY = np.dot(delta, self.weights[1:,:].T)
 
         return dL_dY, grad
-
 
     def export(self):
         return {"name" : "Dense", 
@@ -255,15 +257,16 @@ class Network:
             if l.isOptimized():
                 grads[l] = np.zeros(l.weights.shape)
                 self.optimizer.beforePropagate(l)
-        n = 0
-        for i, t in zip(inputs, targets):
-            n += 1
+
+        for n in range(len(inputs)):
+            i = inputs[n:n+1]
+            t = targets[n:n+1]
             for l in self.layers:
                 i = l.propagate(i)
-            error += loss.loss(t, i)
+            error += np.sum(loss.loss(t, i))
             dL_dY = loss.lossDerivative(t, i)
             if accuracy:
-                acc += accuracy(t, i) 
+                acc += np.sum(accuracy(t, i))
 
             for l in reversed(self.layers):
                 dL_dY, grad = l.backpropagate(dL_dY)

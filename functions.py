@@ -63,15 +63,23 @@ class Sigmoid(ActivationFunction):
 class SoftMax(ActivationFunction):
     def output(self, input, weights):
         inp = self.passF(input, weights)
-        exp = np.exp(inp - np.max(inp))
-        self.prev_out = exp / np.sum(exp)
+        res = []
+        for i in inp:
+            exp = np.exp(i - np.max(i))
+            o = exp / np.sum(exp)
+            res.append(o)
+        self.prev_out = np.asarray(res)
         return self.prev_out
 
     def derivative(self, weights, dL_dO):
-        SM = self.prev_out.reshape((-1,1))
-        jac = np.diagflat(self.prev_out) - np.dot(SM, SM.T)
-        delta = dL_dO @ jac
-        return delta
+        res = []
+        for i in self.prev_out:
+            SM = i.reshape((-1,1))
+            jac = np.diagflat(i) - np.dot(SM, SM.T)
+            delta = dL_dO @ jac
+            res.append(delta[0])
+
+        return np.asarray(res).reshape(self.prev_out.shape)
 
     def export(self):
         return { "name" : "SoftMax" }

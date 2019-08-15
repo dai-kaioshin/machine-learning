@@ -14,7 +14,7 @@ net.add(layers.Dense(5, 3, functions.LeakyReLu(), '3nd hidden'))
 net.add(layers.Dense(3, 1, functions.Sigmoid(), 'Out'))
 
 inp = np.asarray([[0 , 0], [1, 0], [0, 1], [1, 1]])
-target = np.asarray([0, 1, 1, 0])
+target = np.asarray([0, 1, 1, 0]).reshape(4, 1)
 
 print("START")
 for i in range(1000):

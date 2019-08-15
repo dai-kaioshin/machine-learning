@@ -1,14 +1,8 @@
 import numpy as np
 
-f = np.random.uniform(-.5, .5, (8, 3, 3))
+f = np.asarray([[1, 1], [1, 1]])
+x = np.asarray([2, 1])
 
-x = f[:]
-
-x = f[:, 2, 2]
-
-f = np.random.uniform(-.5, .5, (3, 3, 8))
-x = f[:, :, :]
-
-x = f[2, 2, :]
+a = f - x
 
 a = 10
