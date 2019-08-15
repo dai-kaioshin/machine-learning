@@ -75,13 +75,13 @@ class AvgPool(MaxPool):
         return False
 
     def iterateRegions(self, image):
-        _, h, w,  = image.shape
+        h, w, _ = image.shape
         w //= self.size
         h //= self.size
 
         for i in range(h):
             for j in range(w):
-                region = image[i * self.size:(i * self.size + self.size), j*self.size:(j*self.size + self.size)]
+                region = image[i * self.size:(i * self.size + self.size), j*self.size:(j*self.size + self.size), :]
                 yield region, i, j
 
     def propagate(self, input):
@@ -90,7 +90,7 @@ class AvgPool(MaxPool):
         out = np.zeros((n, w // 2, h // 2))
 
         for region, h, w in self.iterateRegions(input):
-            out[:, h, w] = np.average(region, axis = (1, 2))
+            out[h, w, :] = np.average(region, axis = (0, 1))
         
         return out
 
@@ -99,7 +99,7 @@ class AvgPool(MaxPool):
 
         for region, i, j in self.iterateRegions(self.last_input):
             _, h, w = region.shape
-            dL_dI[:, i * 2 : i * 2 + h, j * 2 : j * 2 + w] = dL_dO[:, i, j]
+            dL_dI[i * 2 : i * 2 + h, j * 2 : j * 2 + w, :] = dL_dO[i, j, :]
 
         return dL_dI, None  
 
@@ -115,7 +115,7 @@ class Convolution(Layer):
             self.weights = weights
             self.numFilters = self.weights.shape[0]
         else:
-            self.weights = np.random.uniform(-.5, .5, (filters, size, size))
+            self.weights = np.random.uniform(-.5, .5, (size, size, filters))
         self.filters = self.weights
 
     def reshapeInput(self, input):
@@ -131,18 +131,18 @@ class Convolution(Layer):
 
         for i in range(h - (self.size - 1)):
             for j in range(w - (self.size - 1)):
-                im_region = image[:, i:(i + self.size), j:(j + self.size)]
+                im_region = image[i:(i + self.size), j:(j + self.size), :]
                 yield im_region, i, j
 
     def propagate(self, input):
         input = self.reshapeInput(input)
         self.last_input = input
-        _, h, w = input.shape
+        h, w, _ = input.shape
 
-        out = np.zeros((self.numFilters, h - (self.size -1), w - (self.size - 1)))
+        out = np.zeros((h - (self.size -1), w - (self.size - 1), self.numFilters))
 
         for region, i, j in self.iterateRegions(input):
-            out[:,i, j] = np.sum(region * self.filters, axis=(1, 2))
+            out[i, j, :] = np.sum(region * self.filters, axis=(0, 1))
 
         return out
 
@@ -150,7 +150,7 @@ class Convolution(Layer):
         dL_dF = np.zeros(self.filters.shape)
         dL_dI = np.zeros(self.last_input.shape)
         s = self.size
-        im = dL_dI.shape[0]
+        im = dL_dI.shape[2]
         f_p_i = self.numFilters // im
 
         for region, x, y in self.iterateRegions(dL_dI):
@@ -158,7 +158,7 @@ class Convolution(Layer):
                 for i in range(im):
                     f_idx = f + (f_p_i * i)
                     dL_dF[f_idx] += dL_dO[f_idx, x, y] * region[i]
-                    dL_dI[i, x : x + s, y : y + s] += np.dot(dL_dO[f_idx, x, y],  self.filters[f_idx])
+                    dL_dI[x : x + s, y : y + s, i] += np.dot(dL_dO[x, y, f_idx],  self.filters[:, :, f_idx])
 
         return dL_dI, dL_dF
 
@@ -189,8 +189,8 @@ class Dense(Layer):
 
     def backpropagate(self, dL_dY):
         delta = self.activation.derivative(self.weights, dL_dY)
-        grad = np.vstack((delta, np.outer(self.last_input, delta)))
-        dL_dY = np.sum(delta * self.weights[1:,:], axis=1)
+        grad = np.vstack(delta, np.dot(self.last_input.T, delta))
+        dL_dY = np.dot(delta * self.weights[1:,:].T, axis=1)
 
         return dL_dY, grad
 

@@ -18,13 +18,14 @@ target = np.asarray([0, 1, 1, 0])
 
 print("START")
 for i in range(1000):
-    """for i, inputX in enumerate(inp):
-        result = net.propagate(inputX)
+    #for i, inputX in enumerate(inp):
+    result = net.propagate(inp)
         #print(str(target[i]) + " : " + str(result))
-        dL_dO = (target[i] - result)
+    dL_dO = (target - result)
+    err = np.sum((target - result)**2) / 2
         #print(np.sum(dL_dO ** 2))
-        net.backpropagate(dL_dO)"""
-    err, _ = net.batch_fit(inp, target, loss)
+    net.backpropagate(dL_dO)
+    #err, _ = net.batch_fit(inp, target, loss)
     if err < 0.0001:
         print("Finished Err = {} iterations : {}".format(err, i))
         break
